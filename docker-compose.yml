@@ -1,0 +1,60 @@
+ version: '3.9'
+ networks:
+     pmnet:
+ volumes:
+     mysql-data:
+     docker-data:
+     processmaker-data:
+ services:
+     mysql:
+         image: mysql:5.7
+         ports:
+             - '3306:3306'
+         environment:
+             MYSQL_ROOT_PASSWORD: P4ssW0rd
+             MYSQL_DATABASE: pm4
+             MYSQL_USER: pm4_user
+             MYSQL_PASSWORD: pm4_password
+         networks:
+             - pmnet
+         volumes:
+             - mysql-data:/var/lib/mysql
+     redis:
+         image: redis:6
+         ports:
+             - '6379:6379'
+         networks:
+             - pmnet
+     remotedocker:
+         image: docker:20-dind
+         privileged: true
+         ports:
+             - '2376:2376'
+         networks:
+             - pmnet
+         volumes:
+             - ./certs:/certs
+             - docker-data:/var/lib/docker
+         environment:
+             DOCKER_TLS_CERTDIR: '/certs'
+     processmaker:
+         image: processmaker/pm4-core:4.0-dev
+         ports:
+             - '8080:443'
+         depends_on:
+             - mysql
+             - redis
+             - remotedocker
+         networks:
+             - pmnet
+         volumes:
+             - ./certs:/certs/
+             - ./.env:/opt/processmaker/.env
+             - processmaker-data:/opt/processmaker/storage
+         environment:
+             WAIT_FOR_DEPENDENTS: 1
+             DOCKER_HOST: 'tcp://remotedocker:2376'
+             DOCKER_CERT_PATH: '/certs/client'
+             DOCKER_TLS_VERIFY: 1
+             NO_PROXY: '127.0.0.1,localhost,remotedocker:2376'
+
